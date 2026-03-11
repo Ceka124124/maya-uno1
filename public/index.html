@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="theme-color" content="#0a0008">
+    <title>🎮 3D UNO - Masa Oyunu</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        :root {
+            --bg: #0a0008;
+            --bgcard: #120010;
+            --text: #f0e8ff;
+            --muted: #6a5a7a;
+            --border: rgba(255,255,255,.1);
+            --radius: 18px;
+            --red: #ff3b3b;
+            --yellow: #ffd600;
+            --green: #00c853;
+            --blue: #2979ff;
+            --wild: #1a0020;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; overflow: hidden; background: var(--bg); font-family: 'Outfit', sans-serif; color: var(--text); }
+
+        #container { width: 100%; height: 100vh; display: flex; flex-direction: column; }
+
+        /* ─── TOP BAR ─── */
+        #topbar {
+            flex-shrink: 0;
+            height: 60px;
+            background: linear-gradient(90deg, #0d000d, #160018, #0d000d);
+            border-bottom: 1px solid rgba(255,255,255,.1);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 15px;
+            box-shadow: 0 4px 20px rgba(0,0,0,.6);
+        }
+
+        .topbar-title {
+            font-family: 'Fredoka One', cursive;
+            font-size: 1.8rem;
+            background: linear-gradient(90deg, #ff6b6b, #ffd600, #00e676, #2979ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            flex: 1;
+        }
+
+        .tbadge {
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: .8rem;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255,214,0,.12);
+            border: 1px solid rgba(255,214,0,.3);
+            color: #ffd600;
+        }
+
+        /* ─── MAIN GAME AREA ─── */
+        #gameArea {
+            flex: 1;
+            display: flex;
+            gap: 15px;
+            padding: 15px;
+            background: radial-gradient(ellipse at 50% 40%, #1a0028 0%, #0a0010 60%, #050008 100%);
+        }
+
+        /* ─── 3D CANVAS ─── */
+        #canvas3d {
+            flex: 1;
+            border-radius: var(--radius);
+            background: linear-gradient(135deg, rgba(26,0,40,.8) 0%, rgba(10,0,16,.8) 100%);
+            border: 1px solid var(--border);
+            box-shadow: 0 8px 32px rgba(0,0,0,.5);
+            overflow: hidden;
+        }
+
+        #loadingBar {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,.8);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            z-index: 50;
+            min-width: 250px;
+        }
+
+        .progress-track {
+            width: 200px;
+            height: 8px;
+            background: rgba(255,255,255,.1);
+            border-radius: 10px;
+            margin: 15px auto;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff3b3b, #ffd600, #00c853);
+            width: 0%;
+            transition: width .2s;
+        }
+
+        /* ─── RIGHT SIDEBAR: PLAYER INFO & CARDS ─── */
+        #rightSidebar {
+            width: 320px;
+            background: rgba(18,0,16,.6);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0,0,0,.5);
+        }
+
+        #playersPanel {
+            flex: 0 0 auto;
+            padding: 15px;
+            border-bottom: 1px solid var(--border);
+            max-height: 180px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,.1) transparent;
+        }
+
+        .player-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            margin-bottom: 8px;
+            background: rgba(255,255,255,.04);
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,.06);
+            transition: all .2s;
+        }
+
+        .player-item.active {
+            background: linear-gradient(90deg, rgba(255,214,0,.15) 0%, rgba(255,214,0,.05) 100%);
+            border-color: rgba(255,214,0,.3);
+            box-shadow: 0 0 12px rgba(255,214,0,.2);
+        }
+
+        .player-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: .9rem;
+            color: #fff;
+            flex-shrink: 0;
+        }
+
+        .player-info { flex: 1; min-width: 0; }
+        .player-name { font-size: .85rem; font-weight: 700; }
+        .player-cards { font-size: .75rem; color: var(--muted); }
+
+        /* ─── HAND CARDS ─── */
+        #handPanel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            overflow: hidden;
+        }
+
+        .hand-title {
+            font-size: .85rem;
+            font-weight: 800;
+            color: var(--muted);
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+        }
+
+        #handCardsContainer {
+            flex: 1;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-content: flex-start;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,.1) transparent;
+        }
+
+        .uno-card {
+            width: 70px;
+            height: 100px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 1.4rem;
+            cursor: pointer;
+            transition: all .15s;
+            border: 2px solid rgba(255,255,255,.1);
+            box-shadow: 0 4px 12px rgba(0,0,0,.4);
+            flex-shrink: 0;
+            position: relative;
+        }
+
+        .uno-card.red { background: linear-gradient(135deg, #ff3b3b, #ff6b6b); }
+        .uno-card.yellow { background: linear-gradient(135deg, #ffd600, #ffeb3b); color: #333; }
+        .uno-card.green { background: linear-gradient(135deg, #00c853, #00e676); }
+        .uno-card.blue { background: linear-gradient(135deg, #2979ff, #64b5f6); }
+        .uno-card.wild { background: linear-gradient(135deg, #a64dff, #d946ef); }
+
+        .uno-card:hover:not(.disabled) {
+            transform: translateY(-8px) scale(1.05);
+            box-shadow: 0 8px 20px rgba(0,0,0,.6);
+            border-color: rgba(255,255,255,.3);
+        }
+
+        .uno-card.disabled { opacity: .5; cursor: not-allowed; }
+
+        /* ─── BUTTONS ─── */
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: auto;
+            padding-top: 15px;
+            border-top: 1px solid var(--border);
+        }
+
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: 'Outfit', sans-serif;
+            font-size: .85rem;
+            transition: all .15s;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+        }
+
+        .btn-draw {
+            background: linear-gradient(135deg, #2979ff, #64b5f6);
+            color: #fff;
+        }
+
+        .btn-draw:active:not(:disabled) { transform: scale(.96); }
+        .btn-draw:disabled { opacity: .5; cursor: not-allowed; }
+
+        .btn-uno {
+            background: linear-gradient(135deg, #ff3b3b, #ff6b6b);
+            color: #fff;
+        }
+
+        .btn-uno:active { transform: scale(.96); }
+
+        /* ─── NOTIFICATIONS ─── */
+        #notifContainer {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .notif {
+            padding: 14px 18px;
+            border-radius: 10px;
+            background: rgba(0,0,0,.9);
+            border-left: 4px solid;
+            color: var(--text);
+            font-size: .85rem;
+            font-weight: 600;
+            animation: slideIn .3s ease;
+        }
+
+        .notif.success { border-color: var(--green); }
+        .notif.error { border-color: var(--red); }
+        .notif.info { border-color: var(--blue); }
+
+        @keyframes slideIn {
+            from { transform: translateX(400px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* ─── MODALS ─── */
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal.show { display: flex; }
+
+        .modal-content {
+            background: var(--bgcard);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 30px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,.8);
+        }
+
+        .modal-title {
+            font-family: 'Fredoka One', cursive;
+            font-size: 1.6rem;
+            margin-bottom: 15px;
+            background: linear-gradient(90deg, #ff6b6b, #ffd600);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .color-picker {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin: 20px 0;
+        }
+
+        .color-btn {
+            aspect-ratio: 1;
+            border: 3px solid rgba(255,255,255,.1);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all .2s;
+            font-weight: 900;
+            font-size: 1.5rem;
+        }
+
+        .color-btn:hover { transform: scale(1.05); border-color: rgba(255,255,255,.3); }
+        .color-btn.selected { border-color: #fff; box-shadow: 0 0 20px rgba(255,255,255,.3); }
+
+        .cr { background: linear-gradient(135deg, #ff3b3b, #ff6b6b); }
+        .cy { background: linear-gradient(135deg, #ffd600, #ffeb3b); }
+        .cg { background: linear-gradient(135deg, #00c853, #00e676); }
+        .cb { background: linear-gradient(135deg, #2979ff, #64b5f6); }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <!-- TOP BAR -->
+        <div id="topbar">
+            <div class="topbar-title">🎮 3D UNO</div>
+            <div class="tbadge"><i class="fas fa-user"></i> <span id="playerNameDisplay">Oyuncu</span></div>
+            <div class="tbadge"><i class="fas fa-crown"></i> <span id="scoreBadge">0</span></div>
+            <div class="tbadge"><i class="fas fa-layer-group"></i> <span id="roundBadge">1</span></div>
+        </div>
+
+        <!-- MAIN GAME AREA -->
+        <div id="gameArea">
+            <!-- 3D CANVAS -->
+            <div id="canvas3d"></div>
+
+            <!-- RIGHT SIDEBAR -->
+            <div id="rightSidebar">
+                <div id="playersPanel"></div>
+                <div id="handPanel">
+                    <div class="hand-title">✋ El Kartları</div>
+                    <div id="handCardsContainer"></div>
+                    <div class="btn-group">
+                        <button class="btn-draw" id="drawBtn" onclick="drawCard()"><i class="fas fa-plus"></i> ÇEK</button>
+                        <button class="btn-uno" id="unoBtn" onclick="callUNO()"><i class="fas fa-star"></i> UNO!</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODALS -->
+    <div id="colorModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-title">Renk Seç</div>
+            <p style="color: var(--muted); margin-bottom: 20px;">Joker kartın rengini seçin:</p>
+            <div class="color-picker">
+                <button class="color-btn cr" onclick="selectColor('red')"></button>
+                <button class="color-btn cy" onclick="selectColor('yellow')"></button>
+                <button class="color-btn cg" onclick="selectColor('green')"></button>
+                <button class="color-btn cb" onclick="selectColor('blue')"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOADING BAR -->
+    <div id="loadingBar" style="display:none;">
+        <div style="font-size: 1.2rem; font-weight: 700;">⏳ Model Yükleniyor...</div>
+        <div class="progress-track">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div style="font-size: .9rem; color: var(--muted); margin-top: 10px;">
+            <span id="progressText">0</span>%
+        </div>
+    </div>
+
+    <script>
+        // ════════════════════════════════════════════════════════════════════════
+        // GAME STATE
+        // ════════════════════════════════════════════════════════════════════════
+        let gameState = {
+            players: {},
+            order: [],
+            currentPlayer: null,
+            topCard: null,
+            hand: [],
+            scores: {},
+            round: 1,
+            started: false,
+            playerId: null,
+            playerName: 'Oyuncu'
+        };
+
+        let pendingWildColor = null;
+        let selectedCard = null;
+
+        // ════════════════════════════════════════════════════════════════════════
+        // 3D SCENE
+        // ════════════════════════════════════════════════════════════════════════
+        let scene, camera, renderer, table = null;
+        const canvasContainer = document.getElementById('canvas3d');
+
+        function initScene() {
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0008);
+            scene.fog = new THREE.Fog(0x0a0008, 2, 8);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(75, canvasContainer.clientWidth / canvasContainer.clientHeight, 0.1, 1000);
+            camera.position.set(0, 1.5, 2);
+            camera.lookAt(0, 0.5, 0);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFShadowShadowMap;
+            canvasContainer.appendChild(renderer.domElement);
+
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(5, 5, 5);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            directionalLight.shadow.camera.far = 15;
+            directionalLight.shadow.camera.left = -10;
+            directionalLight.shadow.camera.right = 10;
+            directionalLight.shadow.camera.top = 10;
+            directionalLight.shadow.camera.bottom = -10;
+            scene.add(directionalLight);
+
+            // Background
+            const bgGeom = new THREE.PlaneGeometry(100, 100);
+            const bgMat = new THREE.MeshStandardMaterial({
+                color: 0x0a0008,
+                side: THREE.BackSide
+            });
+            const background = new THREE.Mesh(bgGeom, bgMat);
+            background.position.z = -5;
+            scene.add(background);
+
+            // Animation loop
+            animate();
+
+            // Load model
+            loadModel();
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function loadModel() {
+            document.getElementById('loadingBar').style.display = 'block';
+
+            const loader = new THREE.GLTFLoader();
+            const modelUrl = 'https://spinbootle.2026aze.site/model.glb';
+
+            loader.load(
+                modelUrl,
+                (gltf) => {
+                    table = gltf.scene;
+                    table.scale.set(1.5, 1.5, 1.5);
+                    table.position.set(0, 0, 0);
+                    table.castShadow = true;
+                    table.receiveShadow = true;
+
+                    // Setup shadows
+                    table.traverse((child) => {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                        }
+                    });
+
+                    scene.add(table);
+                    document.getElementById('loadingBar').style.display = 'none';
+                },
+                (progressEvent) => {
+                    if (progressEvent.lengthComputable) {
+                        const percentComplete = (progressEvent.loaded / progressEvent.total) * 100;
+                        document.getElementById('progressFill').style.width = percentComplete + '%';
+                        document.getElementById('progressText').textContent = Math.round(percentComplete);
+                    }
+                },
+                (error) => {
+                    console.error('Model yükleme hatası:', error);
+                    notify('Model yüklenirken hata oluştu!', 'error');
+                    document.getElementById('loadingBar').style.display = 'none';
+                }
+            );
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Rotate table
+            if (table) {
+                table.rotation.y += 0.0005;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            const width = canvasContainer.clientWidth;
+            const height = canvasContainer.clientHeight;
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        }
+
+        // ════════════════════════════════════════════════════════════════════════
+        // UI RENDERING
+        // ════════════════════════════════════════════════════════════════════════
+        function renderPlayers() {
+            const panel = document.getElementById('playersPanel');
+            panel.innerHTML = '';
+
+            Object.entries(gameState.players).forEach(([pid, player]) => {
+                const isActive = gameState.currentPlayer === pid;
+                const item = document.createElement('div');
+                item.className = 'player-item' + (isActive ? ' active' : '');
+                item.innerHTML = `
+                    <div class="player-avatar" style="background: ${player.color}">${player.name[0].toUpperCase()}</div>
+                    <div class="player-info">
+                        <div class="player-name">${player.name}</div>
+                        <div class="player-cards">${player.handCount} kart</div>
+                    </div>
+                `;
+                panel.appendChild(item);
+            });
+        }
+
+        function renderHand() {
+            const container = document.getElementById('handCardsContainer');
+            container.innerHTML = '';
+
+            gameState.hand.forEach((card) => {
+                const card_el = document.createElement('div');
+                card_el.className = `uno-card ${card.color}`;
+                if (selectedCard === card.id) card_el.style.border = '3px solid #fff';
+                card_el.innerHTML = card.value === 'skip' ? '⏭️' : 
+                                   card.value === 'reverse' ? '🔄' : 
+                                   card.value === 'draw2' ? '+2' : 
+                                   card.value === 'wild' ? '🔮' : 
+                                   card.value === 'draw4' ? '+4' : card.value;
+                card_el.onclick = () => playCard(card.id);
+                container.appendChild(card_el);
+            });
+        }
+
+        function renderTopbar() {
+            document.getElementById('playerNameDisplay').textContent = gameState.playerName;
+            document.getElementById('roundBadge').textContent = gameState.round;
+            document.getElementById('scoreBadge').textContent = gameState.scores[gameState.playerId] || 0;
+        }
+
+        // ════════════════════════════════════════════════════════════════════════
+        // GAME LOGIC
+        // ════════════════════════════════════════════════════════════════════════
+        function playCard(cardId) {
+            const card = gameState.hand.find(c => c.id === cardId);
+            if (!card) return;
+
+            if (card.color === 'wild') {
+                pendingWildId = cardId;
+                document.getElementById('colorModal').classList.add('show');
+            } else {
+                // Emit play_card to server
+                console.log('Playing card:', card);
+                notify(`${card.value} oynandı! 🎴`, 'success');
+                selectedCard = null;
+                renderHand();
+            }
+        }
+
+        function selectColor(color) {
+            // Find card with pending wild color
+            const card = gameState.hand.find(c => c.id === pendingWildId);
+            if (card) {
+                console.log('Selected color:', color, 'for card:', card);
+                notify(`${color === 'red' ? '🔴' : color === 'yellow' ? '🟡' : color === 'green' ? '🟢' : '🔵'} Renk seçildi!`, 'success');
+            }
+            document.getElementById('colorModal').classList.remove('show');
+            pendingWildId = null;
+        }
+
+        function drawCard() {
+            console.log('Drawing card...');
+            notify('Kart çekildi 🎴', 'info');
+        }
+
+        function callUNO() {
+            notify('UNO! 🔥', 'success');
+        }
+
+        // ════════════════════════════════════════════════════════════════════════
+        // NOTIFICATIONS
+        // ════════════════════════════════════════════════════════════════════════
+        function notify(msg, type = 'info') {
+            const container = document.getElementById('notifContainer');
+            const notif = document.createElement('div');
+            notif.className = `notif ${type}`;
+            notif.innerHTML = msg;
+            container.appendChild(notif);
+            setTimeout(() => notif.remove(), 3000);
+        }
+
+        // ════════════════════════════════════════════════════════════════════════
+        // INITIALIZATION
+        // ════════════════════════════════════════════════════════════════════════
+        function init() {
+            gameState.playerId = 'player_' + Date.now();
+            gameState.playerName = 'Oyuncu_' + gameState.playerId.slice(-4);
+            gameState.players[gameState.playerId] = {
+                name: gameState.playerName,
+                color: '#3498db',
+                handCount: 7
+            };
+            gameState.currentPlayer = gameState.playerId;
+            gameState.order = [gameState.playerId];
+
+            // Demo hand
+            gameState.hand = [
+                { id: 1, color: 'red', value: '5' },
+                { id: 2, color: 'blue', value: '7' },
+                { id: 3, color: 'yellow', value: 'skip' },
+                { id: 4, color: 'green', value: 'reverse' },
+                { id: 5, color: 'blue', value: 'draw2' },
+                { id: 6, color: 'wild', value: 'wild' },
+                { id: 7, color: 'red', value: '9' },
+            ];
+
+            gameState.topCard = { color: 'yellow', value: '3' };
+            gameState.scores[gameState.playerId] = 0;
+
+            initScene();
+            renderPlayers();
+            renderHand();
+            renderTopbar();
+            notify('Oyun başladı! 🎮', 'success');
+        }
+
+        // Start on load
+        init();
+    </script>
+</body>
+</html>
